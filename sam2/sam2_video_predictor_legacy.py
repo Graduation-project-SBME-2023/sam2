@@ -14,6 +14,10 @@ from tqdm import tqdm
 from sam2.modeling.sam2_base import NO_OBJ_SCORE, SAM2Base
 from sam2.utils.misc import concat_points, fill_holes_in_mask_scores, load_video_frames
 
+import gc
+from collections import OrderedDict
+
+import numpy as np
 
 class SAM2VideoPredictor(SAM2Base):
     """The predictor class to handle user interactions and manage inference states."""
@@ -49,7 +53,33 @@ class SAM2VideoPredictor(SAM2Base):
         async_loading_frames=False,
     ):
         """Initialize an inference state."""
+        
+        #####Addded..................
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
+    
+        # Clear existing inference state
+        if hasattr(self, '_inference_state'):
+            for key in list(self._inference_state.keys()):
+                obj = self._inference_state[key]
+                if isinstance(obj, torch.Tensor):
+                    self._inference_state[key] = obj.cpu()
+                elif isinstance(obj, dict):
+                    for subkey in list(obj.keys()):
+                        subobj = obj[subkey]
+                        if isinstance(subobj, torch.Tensor):
+                            obj[subkey] = subobj.cpu()
+            del self._inference_state
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            
+        ###Addded..................
+
         compute_device = self.device  # device of the model
+        # @IMPPPPPPPP
         images, video_height, video_width = load_video_frames(
             video_path=video_path,
             image_size=self.image_size,
@@ -57,6 +87,25 @@ class SAM2VideoPredictor(SAM2Base):
             async_loading_frames=async_loading_frames,
             compute_device=compute_device,
         )
+        #@Break POint @@@@@
+    #     video_np = images.cpu().numpy()
+    #     # Save to .npz
+    #     print("video_height...",video_height)
+    #     print("video_width...",video_width)
+    #     print("video_np Shape:",video_np.shape)
+    #     print("video_np....")
+    #     print(video_np)
+        
+        
+    #     torch.save(
+    #     {
+    #         "images": images,  # this is still a tensor
+    #         "video_height": video_height,
+    #         "video_width": video_width,
+    #     },
+    #     "F:/uni/GP/deployment5/radiology/video_frames_output.pt"
+    # )
+        
         inference_state = {}
         inference_state["images"] = images
         inference_state["num_frames"] = len(images)
@@ -109,6 +158,8 @@ class SAM2VideoPredictor(SAM2Base):
         # Warm up the visual backbone and cache the image feature on frame 0
         self._get_image_feature(inference_state, frame_idx=0, batch_size=1)
         return inference_state
+    
+   
 
     @classmethod
     def from_pretrained(cls, model_id: str, **kwargs) -> "SAM2VideoPredictor":
