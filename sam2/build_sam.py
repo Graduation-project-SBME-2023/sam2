@@ -108,7 +108,7 @@ def build_sam2_video_predictor(
     **kwargs,
 ):
     hydra_overrides = [
-        "++model._target_=sam2.sam2_video_predictor.SAM2VideoPredictor",
+        "++model._target_=sam2.sam2_video_predictor_legacy.SAM2VideoPredictor",
     ]
     if vos_optimized:
         hydra_overrides = [
